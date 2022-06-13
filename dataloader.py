@@ -7,8 +7,8 @@ import torch
 
 
 class Dataset(object):
-    def __init__(self, conv_init_file, parallel_info_file, num_node=500, start_year=2014, end_year=2020,
-                 train_ratio=0.8, num_features=2):
+    def __init__(self, conv_init_file, parallel_info_file, device, num_node=50, start_year=2014, end_year=2020,
+                 train_ratio=0.8, num_features=2, batch_size=32):
         self.conv_init_file = pd.read_csv(conv_init_file).fillna(0)
         with open(parallel_info_file, "rb") as f:
             self.parallel_info = json.load(f)
@@ -16,13 +16,46 @@ class Dataset(object):
         self.num_node = num_node
         self.train_ratio = train_ratio
         self.num_features = num_features
+        self.batch_size = batch_size
         self.max_values = np.asarray(
             [self.conv_init_file['measure_inner'].max(), self.conv_init_file['inner_dfm'].max()])
         self._normalization()
         self.interval_ring_dict = self._generate_interval_ring_dict()
-        self.features_list, self.targets_list = self._generate_all_features()
+        self.features_list = self._generate_all_features()
+        self.adj_mx = torch.Tensor(self.sym_adj(self.construct_adj_mx(self.num_node))).to(device)
+        self.data = self._batchfy()
+        trains, tests = self.data[:int(self.data.shape[0] * train_ratio), ...], self.data[
+                                                                                int(self.data.shape[0] * train_ratio):,
+                                                                                ...]
+        trainX, trainy = trains[:, :-1, ...], trains[:, -1:, ...]
+        testX, testy = tests[:, :-1, ...], tests[:, -1:, ...]
+        self.train_dataset = torch.utils.data.TensorDataset(trainX, trainy)
+        self.train_loader = torch.utils.data.DataLoader(self.train_dataset, batch_size=batch_size)
+        self.test_dataset = torch.utils.data.TensorDataset(testX, testy)
+        self.test_loader = torch.utils.data.DataLoader(self.test_dataset, batch_size=batch_size)
+        # print(self.test_loader)
 
+    def _batchfy(self):
+        def take_subgraphs(features):
+            features_list = []
+            start_idx = 0
+            end_idx = self.num_node
+            while True:
+                if end_idx > features.shape[1]:
+                    break
+                current_features = features[:, start_idx:end_idx, :]
+                features_list.append(current_features)
+                start_idx += 1
+                end_idx += 1
+            features_list = torch.stack(features_list)
+            return features_list
 
+        features_list = []
+        for idx, features in enumerate(self.features_list):
+            current_features = take_subgraphs(features)
+            features_list.append(current_features)
+        features_list = torch.cat(features_list, dim=0)
+        return features_list
 
     def _generate_interval_ring_dict(self):
         '''
@@ -38,7 +71,7 @@ class Dataset(object):
 
     def _normalization(self):
         '''
-        数据标准化
+        数据标准化，对应的列与最大值的比值
         :return:
         '''
         self.conv_init_file['measure_inner'], self.conv_init_file['inner_dfm'] = self.conv_init_file['measure_inner'] / \
@@ -52,11 +85,9 @@ class Dataset(object):
         :return:
         '''
 
-        features_list = [self._construct_features_tensor(line_idx)[0] for line_idx in
-                         self.parallel_info.keys()]
-        target_list = [self._construct_features_tensor(line_idx)[1] for line_idx in
-                       self.parallel_info.keys()]
-        return features_list, target_list
+        features = [self._construct_features_tensor(line_idx)[0] for line_idx in
+                    self.parallel_info.keys()]
+        return features
 
     def _construct_features_tensor(self, line_idx):
         '''
@@ -81,7 +112,7 @@ class Dataset(object):
             current_data = torch.stack([current_measuer_innner, current_inner_dfm])  # [2,1197]
             features.append(current_data.transpose(0, 1).view(self.time_span, -1, self.num_features))
 
-        return torch.cat(features, dim=1)
+        return features
 
     @staticmethod
     def construct_adj_mx(num_node):
