@@ -114,6 +114,17 @@ class Dataset(object):
 
         return features
 
+    def inv_normalization(self, X, dim=None):
+        '''
+        数据逆标准化
+        :param X:
+        :return:
+        '''
+        if dim == None:
+            return X * self.max_values
+        else:
+            return X * self.max_values[dim]
+
     @staticmethod
     def construct_adj_mx(num_node):
         '''

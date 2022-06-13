@@ -10,16 +10,26 @@ class Model(nn.Module):
     def __init__(self, datasets, args):
         super(Model, self).__init__()
         self.args = args
-        self.linear = nn.Linear(1, self.args.HIDDEN_DIM)
+        self.linear_in = nn.Sequential(nn.Linear(1, self.args.HIDDEN_DIM), nn.ReLU(),
+                                       nn.Linear(self.args.HIDDEN_DIM, self.args.HIDDEN_DIM),
+                                       nn.Dropout(p=0.5))
         self.encoder = Encoder(args)
         self.variation = Variation(args)
+        self.decoder = Decoder(args)
+        self.linear_out = nn.Sequential(nn.Linear(self.args.HIDDEN_DIM, self.args.HIDDEN_DIM), nn.ReLU(),
+                                        nn.Dropout(p=0.5),
+                                        nn.Linear(self.args.HIDDEN_DIM, 1))
 
     def forward(self, x, adj_mx):
-        x = self.linear(x)
+        x = self.linear_in(x)
         h = self.encoder(x, adj_mx)
         latent_var, z_mu, z_sigma = self.variation(h)
+        out = self.decoder(latent_var, adj_mx)[-1]
+        out = self.linear_out(out).unsqueeze(1)
+        return out, z_mu, z_sigma
 
-#-----------------
+
+# -----------------
 class ODEDecoderDynamic(nn.Module):
     def __init__(self, ode_func, rtol=.01, atol=.001, method='dopri5', adjoint=False, terminal=False):
         super(ODEDecoderDynamic, self).__init__()
@@ -44,6 +54,39 @@ class ODEDecoderDynamic(nn.Module):
 
     def reset(self):
         self.perform_num = 0
+
+
+class Decoder(nn.Module):
+    def __init__(self, args):
+        super(Decoder, self).__init__()
+        self.args = args
+        self.T = torch.linspace(0., 1, 1)
+        self.ode_func = GCNs(args)
+        self.ode_dynamics = ODEDecoderDynamic(ode_func=self.ode_func, rtol=.01,
+                                              atol=.001,
+                                              adjoint=False,
+                                              method="dopri5")
+
+    def forward(self, y0, adj_mx):
+        self.ode_func.set_adj_mx(adj_mx)
+        # y0 = y0.view(-1, self.args.HIDDEN_DIM)
+        out = self.ode_dynamics(self.T, y0)
+        return out
+
+
+class GCNs(nn.Module):
+    def __init__(self, args):
+        super(GCNs, self).__init__()
+        self.args = args
+        self.gcn_layer = GCN(self.args, self.args.HIDDEN_DIM, self.args.HIDDEN_DIM)
+        self.adj_mx = None
+
+    def forward(self, T, x):
+        x = self.gcn_layer(x, self.adj_mx, F.relu)
+        return x
+
+    def set_adj_mx(self, adj_mx):
+        self.adj_mx = adj_mx
 
 
 # -----------------

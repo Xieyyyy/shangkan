@@ -18,3 +18,4 @@ if __name__ == '__main__':
     holder = Holder(args=args, dataset=dataset)
     for epoch in range(args.EPOCH + 1):
         holder.train(args)
+        holder.eval(args)
