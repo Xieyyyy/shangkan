@@ -3,7 +3,8 @@
 
 用于进行管道直径预测
 
-超参数放置在Args类中方便管理
+超参数可以放置在Args类中方便管理
 
-python main.py
+## 运行
+`python main.py`
  
