@@ -5,5 +5,5 @@
 
 超参数放置在Args类中方便管理
 
-
+python main.py
  
