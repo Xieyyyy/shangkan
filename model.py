@@ -8,7 +8,13 @@ import torchdiffeq
 
 class Model(nn.Module):
     def __init__(self, datasets, args):
+        '''
+        模型类
+        :param datasets:
+        :param args:
+        '''
         super(Model, self).__init__()
+
         self.args = args
         self.linear_in = nn.Sequential(nn.Linear(1, self.args.HIDDEN_DIM), nn.ReLU(),
                                        nn.Linear(self.args.HIDDEN_DIM, self.args.HIDDEN_DIM),
@@ -32,6 +38,15 @@ class Model(nn.Module):
 # -----------------
 class ODEDecoderDynamic(nn.Module):
     def __init__(self, ode_func, rtol=.01, atol=.001, method='dopri5', adjoint=False, terminal=False):
+        '''
+        ODE解码参数类
+        :param ode_func:
+        :param rtol:
+        :param atol:
+        :param method:
+        :param adjoint:
+        :param terminal:
+        '''
         super(ODEDecoderDynamic, self).__init__()
         self.ode_func = ode_func
         self.rtol = rtol
@@ -58,6 +73,10 @@ class ODEDecoderDynamic(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(self, args):
+        '''
+        解码器
+        :param args:
+        '''
         super(Decoder, self).__init__()
         self.args = args
         self.T = torch.linspace(0., 1, 1)
@@ -76,6 +95,10 @@ class Decoder(nn.Module):
 
 class GCNs(nn.Module):
     def __init__(self, args):
+        '''
+        gcn网络
+        :param args:
+        '''
         super(GCNs, self).__init__()
         self.args = args
         self.gcn_layer = GCN(self.args, self.args.HIDDEN_DIM, self.args.HIDDEN_DIM)
@@ -92,6 +115,10 @@ class GCNs(nn.Module):
 # -----------------
 class Variation(nn.Module):
     def __init__(self, args):
+        '''
+        变分重参数
+        :param args:
+        '''
         super(Variation, self).__init__()
         self.enc_mu = nn.Linear(args.HIDDEN_DIM, args.HIDDEN_DIM)
         self.enc_sigma = nn.Linear(args.HIDDEN_DIM, args.HIDDEN_DIM)

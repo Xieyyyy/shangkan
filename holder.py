@@ -7,6 +7,11 @@ from model import Model
 
 class Holder():
     def __init__(self, args, dataset):
+        '''
+        整体训练管理类
+        :param args:传入参数
+        :param dataset: 传入数据集
+        '''
         self.args = args
         self.DEVICE = args.DEVICE
         self.dataset = dataset
